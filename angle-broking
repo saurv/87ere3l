@@ -1,0 +1,56 @@
+from SmartApi import SmartConnect  # or from SmartApi.smartConnect import SmartConnect
+import pyotp
+from logzero import logger
+import pandas as pd
+
+# Initialize SmartAPI with your credentials
+api_key = "T1Mgnr3l"
+client_id = "S62024126"
+password = "1472"
+token = "NVSAMAXSILT622JTC6V6G6LFI4"
+
+# Create a connection object
+obj = SmartConnect(api_key=api_key)
+
+try:
+    totp = pyotp.TOTP(token).now()
+except Exception as e:
+    logger.error("Invalid Token: The provided token is not valid.")
+    raise e
+
+# Authenticate and generate session
+try:
+    data = obj.generateSession(client_id, password, totp)
+    if not data['status']:
+        logger.error("Authentication failed")
+        raise Exception("Authentication failed")
+    authToken = data['data']['jwtToken']
+    feedToken = obj.getfeedToken()
+except Exception as e:
+    logger.error(f"Authentication error: {e}")
+    raise e
+
+historical_params = {
+    "exchange": "NSE",
+    "symboltoken": "3045",  # Replace with correct symbol token
+    "interval": "ONE_MINUTE",
+    "fromdate": "2024-12-09 09:15",
+    "todate": "2024-12-11 15:30"
+}
+
+historical_data = obj.getCandleData(historical_params)
+
+# Convert the data into a pandas DataFrame
+df = pd.DataFrame(historical_data['data'], columns=['Date', 'Open', 'High', 'Low', 'Close', 'Volume'])
+
+# Convert 'Date' to datetime format
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Sort by Date
+df.sort_values(by='Date', inplace=True)
+
+# Calculate the 20-day moving average of the 'Close' price
+df['20_Day_MA'] = df['Close'].rolling(window=20).mean()
+
+# Display the last few rows
+print(df.tail())
